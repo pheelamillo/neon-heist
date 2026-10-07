@@ -47,6 +47,10 @@ test("two isolated browsers play the rebuilt game, keep loot secret, reconnect, 
   await guest.reload(); await expect(guest.getByRole("heading", { name: "Someone stole your share!" })).toBeVisible();
   for (let round = 2; round <= 4; round++) {
     await expect(host.getByRole("heading", { name: `Round ${round} of 4` })).toBeVisible({ timeout: 15000 });
+    for (const player of [host, guest]) {
+      await expect(player.locator(".vault-game .vault-scene")).toHaveAttribute("data-stage", ["bank", "train", "sky", "gold"][round - 1]);
+      await expect(player.locator(".vault-game .vault-scene")).toHaveAttribute("data-renderer", "ready");
+    }
     await expect(host.getByRole("button", { name: "Steal instead using Double Cross" })).toBeDisabled();
     await select(host); await select(guest);
     await expect(host.getByRole("heading", { name: "You got the loot!" })).toBeVisible();
@@ -74,6 +78,8 @@ test("the demo teaches sharing and stealing and the homepage fits on mobile", as
   await page.getByRole("button", { name: /Demo step 4/ }).click();
   await expect(page.getByRole("heading", { name: "Share the treasure." })).toBeVisible();
   await expect(page.locator(".demo-runner > span").first()).toHaveText("$5,000");
+  await expect(page.getByRole("region", { name: "Demo payout" })).toHaveAttribute("data-payout", "collected");
+  await expect(page.locator(".demo-loot strong")).toHaveText("$0");
   await page.getByRole("button", { name: "Use Double Cross", exact: true }).click();
   await expect(page.locator(".demo-runner > span").first()).toHaveText("$10,000");
   await expect(page.locator(".demo-runner > span").last()).toHaveText("$0");
@@ -88,6 +94,52 @@ test("the demo teaches sharing and stealing and the homepage fits on mobile", as
   await context.close();
 });
 
+test("Loot visibly collects, replays, and the four stage previews work on desktop and phone", async ({ browser }) => {
+  test.setTimeout(90000);
+  for (const mobile of [false, true]) {
+    const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 }, reducedMotion: "no-preference" });
+    const page = await context.newPage(); const errors: string[] = []; const actions: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("request", (request) => { if (new URL(request.url()).pathname.startsWith("/api/rooms")) actions.push(request.url()); });
+    await page.goto("/");
+    const preview = page.getByRole("tabpanel");
+    const settings = ["Street Bank", "Armored Train", "Sky Bank", "Crown Vault"];
+    for (let i = 0; i < settings.length; i++) {
+      await page.getByRole("tab", { name: new RegExp(settings[i]) }).click();
+      await expect(preview.getByRole("heading", { name: settings[i], exact: true })).toBeVisible();
+      await expect(preview.locator(".vault-scene")).toHaveAttribute("data-stage", ["bank", "train", "sky", "gold"][i]);
+      await expect(preview.locator(".vault-scene")).toHaveAttribute("data-renderer", "ready");
+      await preview.getByRole("button", { name: "Open Gold Vault preview" }).click();
+      await expect(preview.getByRole("button", { name: "Close Gold Vault preview" })).toHaveAttribute("aria-pressed", "true");
+      await preview.screenshot({ path: `test-results/stage-${i + 1}-${mobile ? "mobile" : "desktop"}.png` });
+    }
+    await page.getByRole("tab", { name: /Crown Vault/ }).press("Home");
+    await expect(page.getByRole("tab", { name: /Street Bank/ })).toBeFocused();
+    await expect(preview.locator(".vault-scene")).toHaveAttribute("data-stage", "bank");
+    await page.getByRole("button", { name: /Demo step 3/ }).click();
+    await expect(page.locator(".demo-loot strong")).toHaveText("$10,000");
+    const payout = page.getByRole("region", { name: "Demo payout" });
+    for (let replay = 0; replay < 2; replay++) {
+      await page.getByRole("button", { name: /Demo step 4/ }).click();
+      await expect(payout).toHaveAttribute("data-payout", "collecting");
+      await expect(page.locator(".demo-coin-transfers")).toBeVisible();
+      await expect(payout).toHaveAttribute("data-payout", "collected");
+      await expect(payout.locator(".demo-wallet strong")).toHaveText(["$5,000", "$5,000"]);
+      await expect(page.locator(".demo-loot strong")).toHaveText("$0");
+    }
+    await page.getByRole("button", { name: "Use Double Cross", exact: true }).click();
+    await expect(payout).toHaveAttribute("data-payout", "collected");
+    await expect(payout.locator(".demo-wallet strong")).toHaveText(["$10,000", "$0"]);
+    await page.getByRole("button", { name: "Share the loot", exact: true }).click();
+    await expect(payout).toHaveAttribute("data-payout", "collected");
+    await expect(payout.locator(".demo-wallet strong")).toHaveText(["$5,000", "$5,000"]);
+    await page.locator(".vault-demo").screenshot({ path: `test-results/demo-loot-${mobile ? "mobile" : "desktop"}.png` });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(actions).toEqual([]); expect(errors).toEqual([]);
+    await context.close();
+  }
+});
+
 test("solo practice starts in one click and plays all four rounds through the UI", async ({ page }) => {
   test.setTimeout(90000); await page.goto("/");
   await page.getByRole("button", { name: "Play vs computer", exact: true }).click();
@@ -95,6 +147,8 @@ test("solo practice starts in one click and plays all four rounds through the UI
   await expect(page.getByTestId("score-Byte")).toBeVisible();
   for (let round = 1; round <= 4; round++) {
     await expect(page.getByRole("heading", { name: `Round ${round} of 4` })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator(".vault-game .vault-scene")).toHaveAttribute("data-stage", ["bank", "train", "sky", "gold"][round - 1]);
+    await expect(page.locator(".vault-game .vault-scene")).toHaveAttribute("data-renderer", "ready");
     await page.getByRole("button", { name: /Choose Gold Vault/ }).click();
     await page.getByRole("button", { name: "Grab loot", exact: true }).click();
     await expect(page.locator(".simple-reveal")).toBeVisible();
@@ -117,6 +171,13 @@ test("a device without WebGL can still play using accessible vault buttons", asy
   });
   const page = await context.newPage(); await page.goto("/");
   await expect(page.locator(".hero-vault .vault-scene")).toHaveAttribute("data-renderer", "fallback");
+  await page.getByRole("tab", { name: /Armored Train/ }).click();
+  await expect(page.getByRole("tabpanel").locator(".vault-scene")).toHaveAttribute("data-stage", "train");
+  await page.getByRole("tabpanel").getByRole("button", { name: "Open Gold Vault preview" }).click();
+  await expect(page.getByRole("tabpanel").locator(".css-safe.open")).toHaveCount(1);
+  await page.getByRole("button", { name: /Demo step 4/ }).click();
+  await expect(page.getByRole("region", { name: "Demo payout" })).toHaveAttribute("data-payout", "collected");
+  await expect(page.locator(".demo-stage .css-safe > b")).toHaveCount(0);
   await page.getByRole("button", { name: "Play vs computer", exact: true }).click();
   await expect(page.locator(".vault-game .vault-scene")).toHaveAttribute("data-renderer", "fallback");
   await select(page); await expect(page.locator(".simple-reveal")).toBeVisible(); await context.close();

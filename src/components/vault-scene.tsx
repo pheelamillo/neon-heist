@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Coins, LockKeyhole, Move, Pause, Play, RotateCcw } from "lucide-react";
 import type * as Three from "three";
+import { HEIST_STAGES, type HeistStage } from "@/lib/game/stages";
+import { buildStageEnvironment } from "./stage-environment";
 
 export type SceneVault = { id: number; name: string; loot: number };
 export const VAULT_COLORS = ["#67e7dd", "#b399ff", "#ffd273"];
@@ -16,16 +18,16 @@ export function VaultPlayground() {
     return () => clearTimeout(timer);
   }, [touched]);
   function toggle() { setTouched(true); setOpened(!opened); }
-  return <><VaultScene vaults={[{ id: 2, name: "Gold Vault", loot: 14000 }]} selected={2} open={opened ? [2] : []} onSelect={toggle}/><button className="playground-toggle" onClick={toggle}>{opened ? <LockKeyhole size={15}/> : <Coins size={15}/>} {opened ? "Close the vault" : "Open the vault"}<span>Just a preview · try it!</span></button></>;
+  return <><VaultScene stage={HEIST_STAGES[3]} vaults={[{ id: 2, name: "Gold Vault", loot: 20000 }]} selected={2} open={opened ? [2] : []} onSelect={toggle}/><button className="playground-toggle" onClick={toggle}>{opened ? <LockKeyhole size={15}/> : <Coins size={15}/>} {opened ? "Close the vault" : "Open the vault"}<span>Just a preview · try it!</span></button></>;
 }
 
 // This scene is presentation only. Opening it never changes a room or payout.
-export function VaultScene({ vaults, selected = null, open = [], alarms = [], disabled = false, onSelect,
-  className = "" }: { vaults: SceneVault[]; selected?: number | null; open?: number[]; alarms?: number[];
-  disabled?: boolean; onSelect?: (id: number) => void; className?: string }) {
+export function VaultScene({ vaults, selected = null, open = [], empty = [], alarms = [], disabled = false, onSelect,
+  stage = HEIST_STAGES[0], className = "" }: { vaults: SceneVault[]; selected?: number | null; open?: number[]; empty?: number[]; alarms?: number[];
+  disabled?: boolean; onSelect?: (id: number) => void; stage?: HeistStage; className?: string }) {
   const mount = useRef<HTMLDivElement>(null);
-  const latest = useRef({ selected, open, alarms, disabled, onSelect });
-  latest.current = { selected, open, alarms, disabled, onSelect };
+  const latest = useRef({ selected, open, empty, alarms, disabled, onSelect });
+  latest.current = { selected, open, empty, alarms, disabled, onSelect };
   const [status, setStatus] = useState<"loading" | "ready" | "fallback">("loading");
   const [paused, setPaused] = useState(false);
   const pause = useRef(false);
@@ -35,6 +37,7 @@ export function VaultScene({ vaults, selected = null, open = [], alarms = [], di
 
   useEffect(() => {
     const container = mount.current!;
+    setStatus("loading");
     let disposed = false;
     let cleanup = () => {};
     async function start() {
@@ -64,19 +67,10 @@ export function VaultScene({ vaults, selected = null, open = [], alarms = [], di
       Object.assign(key.shadow.camera, { left: -6, right: 6, top: 5, bottom: -5 });
       key.shadow.bias = -.001;
       scene.add(key);
-      const rim = new T.PointLight(0x9a79ff, 30, 20); rim.position.set(0, 4, -4); scene.add(rim);
-      const floor = new T.Mesh(new T.PlaneGeometry(50, 50), new T.MeshStandardMaterial({ color: 0x070d18, metalness: .25, roughness: .8 }));
-      floor.rotation.x = -Math.PI / 2; floor.position.y = -.14; floor.receiveShadow = true; scene.add(floor);
-      const grid = new T.GridHelper(36, 36, 0x23394c, 0x1a293a); grid.position.y = -.13;
-      const gridMaterial = grid.material as Three.Material; gridMaterial.transparent = true; gridMaterial.opacity = .28; scene.add(grid);
-      const wall = new T.Mesh(new T.PlaneGeometry(28, 9), new T.MeshStandardMaterial({ color: 0x101b2b, metalness: .3, roughness: .8 }));
-      wall.position.set(0, 3, -2.1); scene.add(wall);
-      const stripMaterial = new T.MeshStandardMaterial({ color: 0x6baed8, emissive: 0x327da9, emissiveIntensity: .6 });
-      for (const x of [-7, -4.5, 4.5, 7]) {
-        const strip = new T.Mesh(new T.BoxGeometry(.035, 6, .025), stripMaterial); strip.position.set(x, 2, -2); scene.add(strip);
-      }
+      const rim = new T.PointLight(stage.accent, 30, 20); rim.position.set(0, 4, -4); scene.add(rim);
+      const setting = buildStageEnvironment(T, scene, stage);
       const controls = new OrbitControls(camera, renderer.domElement);
-      controls.target.set(0, 1.15, 0);
+      controls.target.set(0, vaults.length === 1 ? 1.15 : 1.6, 0);
       controls.enablePan = false; controls.enableZoom = false; controls.enableDamping = true;
       controls.minAzimuthAngle = -.55; controls.maxAzimuthAngle = .55;
       controls.minPolarAngle = Math.PI / 3; controls.maxPolarAngle = Math.PI / 2.1;
@@ -86,7 +80,7 @@ export function VaultScene({ vaults, selected = null, open = [], alarms = [], di
         const width = container.clientWidth; const height = container.clientHeight;
         if (!width || !height) return;
         renderer.setSize(width, height); camera.aspect = width / height;
-        camera.position.set(0, single ? 2.9 : 3.2, single ? Math.max(5.8, 4.7 / camera.aspect) : Math.max(5.5, 11.5 / camera.aspect));
+        camera.position.set(0, single ? 2.9 : 3.2, single ? Math.max(5.8, 4.7 / camera.aspect) : Math.max(7.8, 11.5 / camera.aspect));
         camera.updateProjectionMatrix(); controls.update();
       }
       reset.current = resize;
@@ -106,7 +100,7 @@ export function VaultScene({ vaults, selected = null, open = [], alarms = [], di
       const models = vaults.map((vault, index) => {
         const root = new T.Group(); root.userData.vaultId = vault.id;
         root.position.set(single ? 0 : (index - 1) * 2.8, 1.28, 0); scene.add(root);
-        const metal = material(0x5a687d); const trim = material(0xb9c9d9, .95, .22);
+        const metal = material(stage.metal); const trim = material(stage.trim, .95, .22);
         const dark = material(0x111b2a, .6, .5); const gold = material(0xffc64b, .9, .22);
         const color = VAULT_COLORS[vault.id % 3];
         const glow = new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: .5, metalness: .5, roughness: .3 });
@@ -140,15 +134,16 @@ export function VaultScene({ vaults, selected = null, open = [], alarms = [], di
           disc(pivot, .032, .04, dark, .82 + Math.sin(angle) * .73, Math.cos(angle) * .73, .12);
         }
         for (const y of [-.5, .5]) mesh(root, new T.CylinderGeometry(.085, .085, .33, 12), trim, -.83, y, .76);
+        const treasure = new T.Group(); root.add(treasure);
         for (let pile = 0; pile < 5; pile++) {
-          for (let level = 0; level < 5 + pile % 3; level++) mesh(root, new T.CylinderGeometry(.15, .15, .04, 16), gold, (pile % 3 - 1) * .29, -.65 + level * .045, -.15 + Math.floor(pile / 3) * .32);
+          for (let level = 0; level < 5 + pile % 3; level++) mesh(treasure, new T.CylinderGeometry(.15, .15, .04, 16), gold, (pile % 3 - 1) * .29, -.65 + level * .045, -.15 + Math.floor(pile / 3) * .32);
         }
         const coins = Array.from({ length: 8 }, (_, coin) => {
           const value = disc(root, .12, .04, gold, 0, 0, 0); value.visible = false; return { value, seed: coin };
         });
         const halo = mesh(root, new T.TorusGeometry(1.2, .013, 6, 80), glow, 0, -1.28, 0);
         halo.rotation.x = Math.PI / 2;
-        return { root, pivot, wheel, glow, coins, opened: false, openedAt: 0 };
+        return { root, pivot, wheel, glow, coins, treasure, opened: false, openedAt: 0 };
       });
       const raycaster = new T.Raycaster(); const pointer = new T.Vector2();
       let down = { x: 0, y: 0 }; let hovered: number | null = null;
@@ -186,6 +181,7 @@ export function VaultScene({ vaults, selected = null, open = [], alarms = [], di
         models.forEach((model) => {
           const id = model.root.userData.vaultId;
           const opened = latest.current.open.includes(id);
+          model.treasure.visible = !latest.current.empty.includes(id);
           if (opened !== model.opened) { model.opened = opened; model.openedAt = time; }
           const desired = opened ? -Math.PI * .68 : 0;
           model.pivot.rotation.y = moving ? T.MathUtils.damp(model.pivot.rotation.y, desired, 6, delta) : desired;
@@ -200,6 +196,7 @@ export function VaultScene({ vaults, selected = null, open = [], alarms = [], di
             value.rotation.y = elapsed * 6 + seed; value.rotation.z = elapsed * 3;
           });
         });
+        if (moving) setting.animate(delta);
         controls.update(); renderer.render(scene, camera);
       }
       frame = requestAnimationFrame(draw);
@@ -211,23 +208,28 @@ export function VaultScene({ vaults, selected = null, open = [], alarms = [], di
         renderer.domElement.removeEventListener("pointerdown", pointerDown); renderer.domElement.removeEventListener("pointermove", pointerMove);
         renderer.domElement.removeEventListener("pointerup", pointerUp); renderer.domElement.removeEventListener("pointerleave", pointerLeave);
         renderer.domElement.removeEventListener("webglcontextlost", contextLost);
-        const geometries = new Set<Three.BufferGeometry>(); const materials = new Set<Three.Material>();
+        const geometries = new Set<Three.BufferGeometry>(); const materials = new Set<Three.Material>(); const textures = new Set<Three.Texture>();
         scene.traverse((object) => { if (object instanceof T.Mesh) { geometries.add(object.geometry); (Array.isArray(object.material) ? object.material : [object.material]).forEach((mat) => materials.add(mat)); } });
-        geometries.forEach((geometry) => geometry.dispose()); materials.forEach((mat) => mat.dispose());
-        grid.geometry.dispose(); (grid.material as Three.Material).dispose(); key.shadow.dispose();
+        materials.forEach((mat) => { Object.values(mat).forEach((value) => { if (value instanceof T.Texture) textures.add(value); }); mat.dispose(); });
+        geometries.forEach((geometry) => geometry.dispose()); textures.forEach((texture) => texture.dispose()); key.shadow.dispose();
         environmentMap.dispose(); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove(); reset.current = () => {};
       };
       setStatus("ready");
     }
-    void start().catch(() => { cleanup(); if (!disposed) { container.replaceChildren(); setStatus("fallback"); } });
-    return () => { disposed = true; cleanup(); };
-    // The model collection changes only when the collection of vault IDs changes.
+    const activation = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      activation.disconnect();
+      void start().catch(() => { cleanup(); if (!disposed) { container.replaceChildren(); setStatus("fallback"); } });
+    }, { rootMargin: "100px" });
+    activation.observe(container);
+    return () => { disposed = true; activation.disconnect(); cleanup(); };
+    // Rebuild and dispose the scene when the vault collection or round setting changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identity]);
+  }, [identity, stage.id]);
 
-  return <div className={`vault-scene ${vaults.length === 1 ? "single-vault" : ""} ${className}`} data-renderer={status} data-motion={paused ? "paused" : "playing"}>
+  return <div className={`vault-scene stage-${stage.id} ${vaults.length === 1 ? "single-vault" : ""} ${className}`} data-stage={stage.id} data-renderer={status} data-motion={paused ? "paused" : "playing"}>
     <div className="vault-canvas" ref={mount}/>
-    {status !== "ready" && <div className="vault-fallback" aria-hidden="true">{vaults.map((vault) => <div key={vault.id} className={`css-safe ${open.includes(vault.id) ? "open" : ""}`} style={{ "--vault-color": VAULT_COLORS[vault.id % 3] } as React.CSSProperties}><span className="css-safe-door"><span>✣</span></span><i/><b>● ● ●</b></div>)}</div>}
+    {status !== "ready" && <div className="vault-fallback" aria-hidden="true">{vaults.map((vault) => <div key={vault.id} className={`css-safe ${open.includes(vault.id) ? "open" : ""}`} style={{ "--vault-color": VAULT_COLORS[vault.id % 3] } as React.CSSProperties}><span className="css-safe-door"><span>✣</span></span><i/>{!empty.includes(vault.id) && <b>● ● ●</b>}</div>)}</div>}
     <div className="scene-tools"><span><Move size={13}/>{status === "ready" ? "Drag to look around" : "Choose with the buttons below"}</span><div><button type="button" aria-label={paused ? "Resume motion" : "Pause motion"} onClick={() => setPaused(!paused)}>{paused ? <Play size={14}/> : <Pause size={14}/>}</button><button type="button" aria-label="Reset vault view" onClick={() => reset.current()}><RotateCcw size={14}/></button></div></div>
   </div>;
 }
