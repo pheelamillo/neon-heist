@@ -8,7 +8,7 @@ Source repository: https://github.com/pheelamillo/neon-heist
 
 ## Cover image
 
-Upload [the game-cover JPG](docs/submission/neon-heist-cover.jpg) or [the PNG](docs/submission/neon-heist-cover.png). Both are 1024 × 1536 illustrated poster art. The [generation prompt](docs/submission/cover-prompt.md) is included for provenance.
+Upload [the landscape game-cover JPG](docs/submission/neon-heist-cover-wide.jpg) or [the PNG](docs/submission/neon-heist-cover-wide.png). Both are exactly **1920 × 1080 pixels (16:9)**. The [generation/edit prompt](docs/submission/wide-cover-prompt.md) is included for provenance.
 
 ## Short description to paste
 
