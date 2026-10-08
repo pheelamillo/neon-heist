@@ -6,6 +6,16 @@ Rules: https://neon-heist-eight.vercel.app/rules
 
 Source repository: https://github.com/pheelamillo/neon-heist
 
+## Cover image
+
+Upload [the game-cover JPG](docs/submission/neon-heist-cover.jpg) or [the PNG](docs/submission/neon-heist-cover.png). Both are 1024 × 1536 illustrated poster art. The [generation prompt](docs/submission/cover-prompt.md) is included for provenance.
+
+## Short description to paste
+
+Neon Heist is a 3D multiplayer vault game for 2–8 players, with solo play against the computer. Create or join a room, secretly pick a vault, and grab its loot. Share with friends—or use your one Double Cross to steal the whole payout. Play through four animated stages, keep your loot totals hidden, and finish with the biggest stash to win. Players connect from separate devices in a normal browser.
+
+The same description is available as [plain text](docs/submission/description.txt).
+
 ## Project description
 
 Neon Heist is a standalone multiplayer cyberpunk vault game for 2–8 players on separate devices, with a solo mode against the computer. Players enter a nickname, create or join a room using its code, and secretly choose one of three interactive 3D vaults. Alone at a vault, take all its loot; together, share it. Each player has one optional Double Cross to steal the whole payout. Two steals at the same vault trigger an alarm and pay nobody there.
