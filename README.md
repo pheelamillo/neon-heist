@@ -2,6 +2,16 @@
 
 A standalone vault game: **pick a vault, grab the loot, watch the getaway**. Play against the computer or invite 2–8 people on separate devices. Built with **Next.js App Router, TypeScript, Three.js, Supabase Postgres, and Supabase Realtime**. Deployable to Vercel or any Node.js host. Players use a normal browser URL and a nickname. **No ChatGPT, OpenAI account, model API, or AI service is involved at runtime.**
 
+## The four heists
+
+| Street Bank | Armored Train |
+| --- | --- |
+| ![Neon bank and steel vaults](docs/previews/stage-1.png) | ![Cargo safes and passing city scenery](docs/previews/stage-2.png) |
+| Sky Bank | Crown Vault |
+| ![Glass bank overlooking the city](docs/previews/stage-3.png) | ![Golden chamber and the final vault](docs/previews/stage-4.png) |
+
+The submission description and reviewer play instructions are in [SUBMISSION.md](SUBMISSION.md). Deployment and verification status are recorded below.
+
 ## Run locally
 
 Requirements: Node.js 22 or newer and PostgreSQL 16+ with `initdb`, `pg_ctl`, and `createdb` on your PATH. On macOS these are included in the Homebrew `postgresql@16` package.
@@ -66,6 +76,7 @@ Clearing browser storage or switching browsers creates another anonymous identit
 ## Verify
 
 ```sh
+npx next typegen
 npm run typecheck
 npm test
 npm run test:integration
