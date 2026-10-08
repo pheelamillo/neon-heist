@@ -20,23 +20,37 @@ async function api(client, route, method = "GET", body) {
 }
 async function subscribe(client, roomId) {
   await client.realtime.setAuth((await client.auth.getSession()).data.session.access_token);
-  let changed;
+  let changed, failed, eventTimeout, replicationReady;
+  const listening = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Postgres Changes listener timed out.")), 15000);
+    replicationReady = () => { clearTimeout(timeout); resolve(); };
+  });
+  listening.catch(() => {});
   const update = new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("No Realtime update received.")), 15000);
-    changed = (value) => { clearTimeout(timeout); resolve(value); };
+    changed = (value) => { clearTimeout(eventTimeout); resolve(value); };
+    failed = (error) => { clearTimeout(eventTimeout); reject(error); };
   });
   // Prevent a transient unhandled rejection while waiting for channel setup.
   update.catch(() => {});
   const channel = client.channel(`smoke:${roomId}`)
+    .on("system", {}, (payload) => {
+      if (process.env.NEON_SMOKE_DEBUG) console.log("Realtime system:", payload);
+      if (payload.extension === "postgres_changes" && payload.status === "ok") replicationReady();
+      if (payload.status === "error") failed(new Error(`Realtime: ${payload.message}`));
+    })
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "room_updates", filter: `room_id=eq.${roomId}` }, (payload) => changed(payload.new));
   channels.push([client, channel]);
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("Realtime subscription timed out.")), 12000);
-    channel.subscribe((status) => {
+    channel.subscribe((status, error) => {
+      if (process.env.NEON_SMOKE_DEBUG) console.log("Realtime status:", status, error?.message ?? "");
       if (status === "SUBSCRIBED") { clearTimeout(timeout); resolve(); }
       if (["CHANNEL_ERROR", "TIMED_OUT"].includes(status)) { clearTimeout(timeout); reject(new Error(`Realtime: ${status}`)); }
     });
   });
+  // A joined WebSocket can precede the actual replication listener.
+  await listening;
+  eventTimeout = setTimeout(() => failed(new Error("No Realtime update received.")), 30000);
   return { update };
 }
 
@@ -55,8 +69,10 @@ try {
   const forged = await players[1].from("room_updates").update({ version: 999 }).eq("room_id", room.id);
   assert.ok(forged.error, "Direct client writes must fail.");
   const signals = await Promise.all([subscribe(players[0], room.id), subscribe(players[1], room.id)]);
+  if (process.env.NEON_SMOKE_DEBUG) console.log("Both subscriptions joined; changing room state.");
   const generation = { matchId: room.matchId, expectedRound: 0 };
   await api(players[1], endpoint, "PATCH", { ...generation, type: "ready", ready: true });
+  if (process.env.NEON_SMOKE_DEBUG) console.log("Authoritative ready command committed.");
   for (const { update } of signals) {
     const payload = await update;
     assert.deepEqual(Object.keys(payload).sort(), ["room_id", "updated_at", "version"]);

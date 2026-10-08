@@ -72,6 +72,11 @@ export function useRoom(code: string) {
     let disposed = false;
     const client = getSupabase()!;
     const channel = client.channel(`heist:${roomId}`)
+      .on("system", {}, (payload) => {
+        if (disposed || payload.extension !== "postgres_changes") return;
+        setConnection(payload.status === "ok" ? "live" : "polling");
+        if (payload.status === "ok") void refresh();
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "room_updates", filter: `room_id=eq.${roomId}` }, () => { void refresh(); });
     void ensureIdentity().then(async () => {
       const { data } = await client.auth.getSession();
@@ -80,7 +85,7 @@ export function useRoom(code: string) {
       if (disposed) return;
       channel.subscribe((status) => {
         if (disposed) return;
-        setConnection(status === "SUBSCRIBED" ? "live" : "polling");
+        if (status !== "SUBSCRIBED") setConnection("polling");
         if (status === "SUBSCRIBED") void refresh();
       });
     }).catch(() => { if (!disposed) setConnection("polling"); });

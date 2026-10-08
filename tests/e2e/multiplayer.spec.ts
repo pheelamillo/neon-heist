@@ -1,4 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
+
+async function roomState(page: Page, endpoint: string) {
+  if (process.env.NEON_AUTH_MODE !== "supabase") return (await page.request.get(endpoint)).json();
+  return page.evaluate(async (url) => {
+    const key = Object.keys(localStorage).find((name) => name.startsWith("sb-") && name.endsWith("-auth-token"));
+    if (!key) throw new Error("Test browser has no Supabase session.");
+    const session = JSON.parse(localStorage.getItem(key)!);
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${session.access_token}` } });
+    if (!response.ok) throw new Error(`Room read failed: ${response.status}`);
+    return response.json();
+  }, endpoint);
+}
 
 async function select(page: Page, cross = false) {
   await page.getByRole("button", { name: /Choose Sky Vault/ }).click();
@@ -22,6 +35,10 @@ test("two isolated browsers play the rebuilt game, keep loot secret, reconnect, 
   await guest.goto(url); await guest.getByLabel("YOUR NAME", { exact: true }).fill("Bob");
   await guest.getByRole("button", { name: "Join the crew" }).click();
   await expect(host.getByText("Bob", { exact: true })).toBeVisible();
+  if (process.env.NEON_AUTH_MODE === "supabase") {
+    await expect(host.locator(".connection")).toHaveClass(/\blive\b/);
+    await expect(guest.locator(".connection")).toHaveClass(/\blive\b/);
+  }
   await guest.getByRole("button", { name: "I’m ready" }).click();
   await expect(host.getByRole("button", { name: "Start playing" })).toBeEnabled();
   await host.getByRole("button", { name: "Start playing" }).click();
@@ -36,7 +53,7 @@ test("two isolated browsers play the rebuilt game, keep loot secret, reconnect, 
   expect(await guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await select(host, true);
   await expect(host.getByRole("button", { name: "Choice locked", exact: true })).toBeVisible();
-  const guestState = await (await guest.request.get(endpoint)).json();
+  const guestState = await roomState(guest, endpoint);
   expect(guestState.mySubmission).toBeNull(); expect(guestState.players[0].doubleCrossAvailable).toBe(true);
   expect(guestState.players[0].score).toBeNull(); expect(guestState.submissions).toBeUndefined();
   await select(guest);
@@ -186,8 +203,17 @@ test("a device without WebGL can still play using accessible vault buttons", asy
 test("unauthenticated and forged state-changing requests are rejected", async ({ request }) => {
   expect((await request.post("/api/rooms", { data: { nickname: "Attacker", roundSeconds: 20 } })).status()).toBe(401);
   expect((await request.post("/api/session", { headers: { Origin: "https://evil.example" } })).status()).toBe(403);
-  await request.post("/api/session");
-  const room = await (await request.post("/api/rooms", { data: { nickname: "Tester", roundSeconds: 20 } })).json();
-  const response = await request.patch(`/api/rooms/${room.code}`, { data: { type: "ready", ready: true, score: 999999, matchId: room.matchId, expectedRound: 0 } });
-  expect(response.status()).toBe(400);
+  const client = process.env.NEON_AUTH_MODE === "supabase" ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
+  try {
+    const headers: Record<string, string> = {};
+    if (client) {
+      const { data, error } = await client.auth.signInAnonymously();
+      expect(error).toBeNull(); headers.Authorization = `Bearer ${data.session!.access_token}`;
+    } else await request.post("/api/session");
+    const created = await request.post("/api/rooms", { headers, data: { nickname: "Tester", roundSeconds: 20 } });
+    expect(created.status()).toBe(201);
+    const room = await created.json();
+    const response = await request.patch(`/api/rooms/${room.code}`, { headers, data: { type: "ready", ready: true, score: 999999, matchId: room.matchId, expectedRound: 0 } });
+    expect(response.status()).toBe(400);
+  } finally { if (client) await client.auth.signOut(); }
 });

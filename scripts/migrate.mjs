@@ -11,22 +11,27 @@ export async function migrate(connectionString, ssl = false) {
   } : false });
   await client.connect();
   try {
-    await client.query("select pg_advisory_lock(78234721)");
+    // Transaction pooling can change backends between transactions. Keep the
+    // lock and all migration statements in one transaction on one backend.
+    await client.query("begin");
+    await client.query("select pg_advisory_xact_lock(78234721)");
     await client.query("create schema if not exists heist_private");
     await client.query("revoke all on schema heist_private from public");
     await client.query("create table if not exists heist_private.migrations (name text primary key, applied_at timestamptz default now())");
     const migrationsPath = fileURLToPath(new URL("../supabase/migrations/", import.meta.url));
+    const applied = [];
     for (const file of (await readdir(migrationsPath)).filter((name) => name.endsWith(".sql")).sort()) {
       if ((await client.query("select 1 from heist_private.migrations where name=$1", [file])).rowCount) continue;
       const sql = (await readFile(path.join(migrationsPath, file), "utf8")).replace(/^begin;\s*/i, "").replace(/commit;\s*$/i, "");
-      try {
-        await client.query("begin");
-        await client.query(sql);
-        await client.query("insert into heist_private.migrations(name) values($1)", [file]);
-        await client.query("commit");
-      } catch (error) { await client.query("rollback"); throw error; }
-      console.log(`Applied ${file}`);
+      await client.query(sql);
+      await client.query("insert into heist_private.migrations(name) values($1)", [file]);
+      applied.push(file);
     }
+    await client.query("commit");
+    for (const file of applied) console.log(`Applied ${file}`);
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
   } finally { await client.end(); }
 }
 

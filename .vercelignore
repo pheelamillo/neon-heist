@@ -1,12 +1,12 @@
-node_modules/
-.next/
+.git/
 .vercel/
-next-env.d.ts
 .local/
 .env*
 !.env.example
+.next/
+node_modules/
+supabase/.temp/
 test-results/
 playwright-report/
 *.tsbuildinfo
 .DS_Store
-supabase/.temp/
