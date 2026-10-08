@@ -2,6 +2,8 @@
 
 A standalone vault game: **pick a vault, grab the loot, watch the getaway**. Play against the computer or invite 2–8 people on separate devices. Built with **Next.js App Router, TypeScript, Three.js, Supabase Postgres, and Supabase Realtime**. Deployable to Vercel or any Node.js host. Players use a normal browser URL and a nickname. **No ChatGPT, OpenAI account, model API, or AI service is involved at runtime.**
 
+**[Play Neon Heist](https://neon-heist-eight.vercel.app)** · **[Read the rules](https://neon-heist-eight.vercel.app/rules)** · **[GitHub source](https://github.com/pheelamillo/neon-heist)**
+
 ## The four heists
 
 | Street Bank | Armored Train |
@@ -94,7 +96,9 @@ Hosted Supabase Realtime is a separate verification step; passing native local t
 npm run test:supabase
 ```
 
-The smoke test signs in three anonymous users, verifies member/outsider RLS and forbidden client writes, receives updates in two Realtime subscribers, then checks hidden choices and a Double Cross payout. It creates a small test match in the development project. Set `NEON_TEST_URL` to test a Vercel preview instead. Use a development project for this test.
+The smoke test signs in three anonymous users, verifies member/outsider RLS and forbidden client writes, waits for both Postgres Changes listeners, receives updates in two Realtime subscribers, then checks hidden choices and a Double Cross payout. It creates a small test match. Set `NEON_TEST_URL` to test a deployed URL. Prefer a development project for repeated testing.
+
+For isolated UI tests against a deployed URL, set `NEON_TEST_URL` and load the matching Supabase environment. When that URL is set, Playwright uses the deployed server and does not start a local Next.js process.
 
 ## Repository layout
 
@@ -111,7 +115,7 @@ The smoke test signs in three anonymous users, verifies member/outsider RLS and 
 
 ## Deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for the GitHub → Supabase → Vercel process and the remaining hosted verification gate. Dependency versions are reproducibly recorded in `package-lock.json`; use `npm ci`.
+The public version is deployed on Vercel, connected to this GitHub repository and a separate Neon Heist Supabase project. See [DEPLOYMENT.md](DEPLOYMENT.md) for account links and the reproducible GitHub → Supabase → Vercel process. Dependency versions are recorded in `package-lock.json`; use `npm ci`.
 
 Implementation references: [Next.js installation](https://nextjs.org/docs/app/getting-started/installation), [Supabase anonymous sign-ins](https://supabase.com/docs/guides/auth/auth-anonymous), [Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes), [Supabase database connections](https://supabase.com/docs/guides/database/connecting-to-postgres), and [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs).
 

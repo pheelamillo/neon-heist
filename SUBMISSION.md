@@ -1,6 +1,8 @@
 # Neon Heist
 
-Live game: pending hosted deployment and multiplayer verification.
+Live game: https://neon-heist-eight.vercel.app
+
+Rules: https://neon-heist-eight.vercel.app/rules
 
 Source repository: https://github.com/pheelamillo/neon-heist
 
@@ -24,4 +26,6 @@ Built with Next.js, TypeScript, Three.js, Supabase Postgres and Realtime, and Ve
 
 The local version passed multiplayer tests using independent Chrome contexts, including a phone-sized screen, full four-round solo play, private opponent totals, reconnect/rematch, 3D selection, demo payouts, reduced motion, and non-WebGL controls. Rules, Postgres integration, database policies, HTTP requests, TypeScript, and production build checks also passed.
 
-Hosted Supabase Auth/Realtime and public deployment verification are pending. A physical-device test has not yet been observed. See [VERIFICATION.md](VERIFICATION.md) for the current evidence.
+On October 8, 2026, all six browser tests passed again on the public Vercel deployment, including a complete multiplayer match with two independent browsers and one phone viewport. Both players had live Supabase Realtime listeners. A hosted smoke test separately passed anonymous identity, membership RLS, forbidden direct writes, two real Realtime subscribers, hidden choices, and authoritative scoring. The Vercel production build passed, and the public homepage and rules are accessible without an account.
+
+A physical-device test has not yet been observed. See [VERIFICATION.md](VERIFICATION.md) for the exact evidence. This document is ready to copy into a project submission; publishing the app does not submit an external course form automatically.

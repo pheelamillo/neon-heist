@@ -2,6 +2,17 @@
 
 The source is portable. The following steps deploy it under your own GitHub, Supabase, and Vercel accounts. Public deployment should follow local multiplayer tests and the hosted Supabase smoke test. No OpenAI integration is needed.
 
+## Current deployment — October 8, 2026
+
+- Public game: **https://neon-heist-eight.vercel.app**
+- GitHub: **https://github.com/pheelamillo/neon-heist** (public, `main`)
+- Vercel project: **https://vercel.com/sulphoor/neon-heist** (Next.js, Node 22, connected to GitHub)
+- Separate Supabase project: **https://supabase.com/dashboard/project/beuxpeahwyryuhnxfsrq** (Neon Heist, US East)
+
+Production and Preview have the seven required environment values, including the Supabase CA certificate. Anonymous sign-in is enabled, both schema migrations are installed, membership RLS protects the Realtime signals, and Supabase Auth's site URL matches the public game. The hosted smoke test and all six isolated Chrome tests passed against the public Vercel URL. See [VERIFICATION.md](VERIFICATION.md) for the evidence.
+
+The initial Production and Preview environments use this same new Supabase project. Private environment files and local deployment metadata are excluded from both Git and CLI uploads through `.gitignore` and `.vercelignore`. Secrets remain in the account environment settings. The steps below explain how to deploy an independent copy.
+
 ## 1. Create a Supabase development project
 
 Use a fresh project for this game. Enable **Authentication → Providers → Anonymous Sign-Ins**. Players authenticate anonymously and enter a nickname in the game; no email/password screen is needed.
@@ -57,13 +68,13 @@ git remote add origin <your-repository-url>
 git push -u origin main
 ```
 
-If this folder is already initialized, omit `git init`. Review `git status` before committing. Environment files, database data, build output, dependencies, and test artifacts must remain ignored. No repository has been selected or pushed automatically.
+If this folder is already initialized, omit `git init`. Review `git status` before committing. Environment files, database data, build output, dependencies, and test artifacts must remain ignored. This copy is already pushed to the repository linked above.
 
 ## 5. Create a Vercel preview
 
 Import your GitHub repository into Vercel. Select **Next.js**, root directory `.` if the repository is this folder, build command `npm run build`, install command `npm ci`, and Node.js **22.x or newer**. If you place the app inside a larger repository, use its subdirectory as the Vercel root directory.
 
-Add the six Supabase environment settings above for **Preview**. Deploy, visit the ordinary preview URL, and run the hosted smoke test with `NEON_TEST_URL` set to the preview URL. An unauthenticated test runner needs access to the preview; if Vercel deployment protection is enabled, open it appropriately for testing or use the local server against the same Supabase project.
+Add the six Supabase environment settings above for **Preview**, plus `DATABASE_CA_CERT` when needed. Deploy, visit the ordinary preview URL, and run the hosted smoke test with `NEON_TEST_URL` set to the preview URL. An unauthenticated test runner needs access to the preview; if Vercel deployment protection is enabled, open it appropriately for testing or use the local server against the same Supabase project.
 
 Check that Supabase Auth allows the deployed site URL in its project settings. Anonymous sign-in has no OAuth redirect, but keep site settings correct. Keep Supabase's anonymous sign-in rate limits enabled; configure its CAPTCHA protection if you decide the public game needs it. A CAPTCHA-enabled sign-in requires adding the corresponding client token flow before enabling it.
 
@@ -78,4 +89,4 @@ Set the Supabase variables for **Production**, ideally against a separate produc
 - Room state and memberships persist until you choose a retention policy. For an initial small deployment this is intentional. Set retention/cleanup and review Supabase quotas before sustained public traffic. Supabase anonymous accounts also need a retention policy; its anonymous-account cleanup is not automatic.
 - Request limits persist in Postgres and protect create, join, and action endpoints per identity. They are not a substitute for Supabase's authentication abuse controls.
 - Monitor Vercel request errors and Supabase connections/Realtime usage. The client keeps polling if Realtime temporarily fails, and resumes its seat in the same browser.
-- Test artifacts record browser automation, not a completed physical-device test or hosted deployment. Record those checks when you perform them.
+- Browser artifacts record automated browser tests, including tests on the public hosted deployment. A completed physical-device test has not been observed; record it when performed.
